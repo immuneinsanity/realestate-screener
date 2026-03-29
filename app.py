@@ -256,7 +256,7 @@ with st.sidebar:
     min_beds = st.selectbox("Min Bedrooms", [3, 4, 5], index=0)
     min_sqft = st.number_input("Min Sqft", value=1250, step=50, min_value=800, max_value=3000)
     min_ratio = st.slider(
-        "Min Rent Ratio (%)", min_value=0.0, max_value=2.0, value=0.0, step=0.1
+        "Min Rent Ratio (%)", min_value=0.0, max_value=2.0, value=1.0, step=0.1
     ) / 100
     st.markdown("</div>", unsafe_allow_html=True)
 
