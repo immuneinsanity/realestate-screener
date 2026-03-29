@@ -153,14 +153,19 @@ def upsert_properties(df: pd.DataFrame, market: str):
     return inserted
 
 
-def get_properties(market: str = None, filters: dict = None) -> pd.DataFrame:
+def get_properties(market=None, filters: dict = None) -> pd.DataFrame:
     conn = get_connection()
     query = "SELECT * FROM properties WHERE 1=1"
     params = []
 
     if market:
-        query += " AND market = ?"
-        params.append(market)
+        if isinstance(market, list):
+            placeholders = ",".join("?" * len(market))
+            query += f" AND market IN ({placeholders})"
+            params.extend(market)
+        else:
+            query += " AND market = ?"
+            params.append(market)
 
     if filters:
         if filters.get("max_price"):

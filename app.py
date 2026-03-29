@@ -209,9 +209,48 @@ div[data-testid="stVerticalBlock"] > div {
 # Constants & init
 # ---------------------------------------------------------------------------
 DEFAULT_MARKETS = [
-    "Little Rock, AR", "Fayetteville, AR", "Fort Smith, AR",
-    "Jonesboro, AR", "Dallas, TX", "Houston, TX", "San Antonio, TX",
-    "Fort Worth, TX", "El Paso, TX", "Lubbock, TX", "Amarillo, TX",
+    # AR
+    "Little Rock, AR", "Fayetteville, AR", "Fort Smith, AR", "Jonesboro, AR", "Springdale, AR",
+    # TX
+    "Dallas, TX", "Houston, TX", "San Antonio, TX", "Fort Worth, TX", "El Paso, TX",
+    "Lubbock, TX", "Amarillo, TX", "Waco, TX", "Abilene, TX",
+    # FL
+    "Jacksonville, FL", "Tampa, FL", "Orlando, FL", "Pensacola, FL", "Ocala, FL",
+    # AZ
+    "Tucson, AZ", "Yuma, AZ", "Sierra Vista, AZ", "Flagstaff, AZ", "Prescott, AZ",
+    # IN
+    "Indianapolis, IN", "Fort Wayne, IN", "South Bend, IN", "Evansville, IN", "Muncie, IN",
+    # OH
+    "Cleveland, OH", "Columbus, OH", "Cincinnati, OH", "Dayton, OH", "Toledo, OH",
+    "Akron, OH", "Youngstown, OH",
+    # GA
+    "Macon, GA", "Augusta, GA", "Savannah, GA", "Columbus, GA", "Albany, GA",
+    # TN
+    "Memphis, TN", "Knoxville, TN", "Chattanooga, TN", "Jackson, TN", "Clarksville, TN",
+    # AL
+    "Birmingham, AL", "Huntsville, AL", "Montgomery, AL", "Mobile, AL", "Tuscaloosa, AL",
+    # NC
+    "Greensboro, NC", "Winston-Salem, NC", "Durham, NC", "Fayetteville, NC", "Concord, NC",
+    # SC
+    "Columbia, SC", "Greenville, SC", "Spartanburg, SC", "Rock Hill, SC", "Florence, SC",
+    # OK
+    "Oklahoma City, OK", "Tulsa, OK", "Lawton, OK", "Norman, OK", "Broken Arrow, OK",
+    # KY
+    "Louisville, KY", "Lexington, KY", "Bowling Green, KY", "Owensboro, KY", "Covington, KY",
+    # MO
+    "Kansas City, MO", "St. Louis, MO", "Springfield, MO", "Independence, MO", "Joplin, MO",
+    # ID
+    "Boise, ID", "Nampa, ID", "Meridian, ID", "Pocatello, ID", "Idaho Falls, ID",
+    # CO
+    "Colorado Springs, CO", "Pueblo, CO", "Fort Collins, CO",
+    # MT
+    "Billings, MT", "Missoula, MT", "Great Falls, MT", "Bozeman, MT",
+    # WY
+    "Cheyenne, WY", "Casper, WY",
+    # ND
+    "Fargo, ND", "Bismarck, ND", "Grand Forks, ND",
+    # SD
+    "Sioux Falls, SD", "Rapid City, SD", "Aberdeen, SD",
 ]
 
 WATCHLIST_STATUSES = ["Researching", "Made Offer", "Under Contract", "Passed"]
@@ -226,7 +265,7 @@ with st.sidebar:
     st.markdown("*Single-family rental finder*")
 
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
-    st.markdown("**Market**")
+    st.markdown("**Scan Market**")
 
     all_markets = DEFAULT_MARKETS.copy()
     custom_raw = st.text_input(
@@ -243,6 +282,26 @@ with st.sidebar:
         all_markets,
         key="selected_market",
         label_visibility="collapsed",
+    )
+
+    st.markdown("**View Markets**")
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
+        if st.button("Select All", key="markets_select_all", use_container_width=True):
+            st.session_state["markets_view"] = all_markets.copy()
+    with btn_col2:
+        if st.button("Select None", key="markets_select_none", use_container_width=True):
+            st.session_state["markets_view"] = []
+
+    if "markets_view" not in st.session_state:
+        st.session_state["markets_view"] = []
+
+    selected_markets = st.multiselect(
+        "Markets to display",
+        all_markets,
+        key="markets_view",
+        label_visibility="collapsed",
+        placeholder="Select markets to display…",
     )
 
     past_days = st.slider("Listings from last N days", 7, 90, 30, key="past_days")
@@ -306,7 +365,8 @@ with tab_screener:
     st.markdown(f"### Real Estate Investment Screener")
 
     # Fetch properties from DB
-    props_df = get_properties(market=selected_market, filters=active_filters)
+    market_filter = selected_markets if selected_markets else None
+    props_df = get_properties(market=market_filter, filters=active_filters)
 
     # Summary metrics
     if not props_df.empty:
@@ -440,10 +500,19 @@ with tab_screener:
                         else:
                             st.info("Already in watchlist or error.")
     else:
-        st.info(
-            f"No properties found for **{selected_market}** with current filters.  \n"
-            "Click **🔍 Scan Market** in the sidebar to fetch listings, or adjust your filters."
-        )
+        if not selected_markets:
+            st.info(
+                "Select markets to display in **View Markets** (sidebar), "
+                "then click **🔍 Scan Market** to fetch listings."
+            )
+        else:
+            markets_str = ", ".join(selected_markets[:5])
+            if len(selected_markets) > 5:
+                markets_str += f" +{len(selected_markets) - 5} more"
+            st.info(
+                f"No properties found for **{markets_str}** with current filters.  \n"
+                "Click **🔍 Scan Market** in the sidebar to fetch listings, or adjust your filters."
+            )
 
         st.markdown("#### How to get started")
         st.markdown("""
