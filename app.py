@@ -16,7 +16,7 @@ from src.db import (
     remove_from_watchlist,
 )
 from src.scraper import scrape_market
-from src.analyzer import get_ratio_label, MAX_PRICE
+from src.analyzer import get_ratio_label, get_crime_tier, MAX_PRICE
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -331,6 +331,10 @@ with st.sidebar:
     min_ratio = st.slider(
         "Min Rent Ratio (%)", min_value=0.0, max_value=2.0, value=1.0, step=0.1
     ) / 100
+    max_crime_tier = st.slider(
+        "Max Crime Tier (1=Very Safe → 5=Very High)",
+        min_value=1, max_value=5, value=3, step=1,
+    )
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
@@ -355,7 +359,7 @@ with st.sidebar:
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
-    st.caption(f"Criteria: ≤${max_price:,} · {min_beds}+ bed · {min_sqft:,}+ sqft")
+    st.caption(f"Criteria: ≤${max_price:,} · {min_beds}+ bed · {min_sqft:,}+ sqft · Crime ≤{max_crime_tier}")
     st.caption("Data: Realtor.com via homeharvest · HUD FMR rents")
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -399,6 +403,7 @@ active_filters = {
     "min_beds": min_beds,
     "min_sqft": min_sqft,
     "min_ratio": min_ratio if min_ratio > 0 else None,
+    "max_crime_tier": max_crime_tier,
 }
 
 # ---------------------------------------------------------------------------
@@ -449,6 +454,7 @@ with tab_screener:
             "sqft": "Sqft",
             "est_rent": "Est. Rent",
             "rent_ratio": "Ratio",
+            "crime_label": "Crime",
             "days_on_market": "Days Listed",
         }
 
@@ -503,6 +509,11 @@ with tab_screener:
                     st.markdown(f"**Rent Ratio:** {ratio_icon} {ratio*100:.2f}%")
                     st.markdown(f"**Investment Score:** {score:.0f} / 100")
                     st.markdown(f"**Days Listed:** {row.get('days_on_market', 'N/A')}")
+                    crime_label = str(row.get("crime_label", "") or "")
+                    if not crime_label:
+                        city_name = str(row.get("city", ""))
+                        _, crime_label = get_crime_tier(city_name)
+                    st.markdown(f"**Crime:** {crime_label}")
                 with c3:
                     st.markdown(f"**ZIP:** {row.get('zip_code', 'N/A')}")
                     st.markdown(f"**County:** {row.get('county', 'N/A')}")
@@ -525,12 +536,13 @@ with tab_screener:
 
                 if breakdown:
                     st.markdown("**Score Breakdown:**")
-                    bc1, bc2, bc3, bc4, bc5 = st.columns(5)
-                    bc1.metric("Rent Ratio", f"{breakdown.get('rent_ratio_score', 0):.0f}/40")
-                    bc2.metric("Price", f"{breakdown.get('price_score', 0):.0f}/20")
-                    bc3.metric("Size", f"{breakdown.get('size_score', 0):.0f}/20")
-                    bc4.metric("Beds", f"{breakdown.get('bed_score', 0)}/10")
-                    bc5.metric("Freshness", f"{breakdown.get('dom_score', 0)}/10")
+                    bc1, bc2, bc3, bc4, bc5, bc6 = st.columns(6)
+                    bc1.metric("Rent Ratio", f"{breakdown.get('rent_ratio_score', 0):.0f}/35")
+                    bc2.metric("Crime", f"{breakdown.get('crime_score', 0)}/20")
+                    bc3.metric("Price", f"{breakdown.get('price_score', 0):.0f}/15")
+                    bc4.metric("Size", f"{breakdown.get('size_score', 0):.0f}/15")
+                    bc5.metric("Beds", f"{breakdown.get('bed_score', 0)}/8")
+                    bc6.metric("Freshness", f"{breakdown.get('dom_score', 0)}/7")
 
                 # Links + watchlist
                 property_url = str(row.get("property_url", "") or row.get("url", "") or "")

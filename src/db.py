@@ -1,3 +1,4 @@
+import hashlib
 import sqlite3
 import json
 import pandas as pd
@@ -88,6 +89,8 @@ def init_db():
     # Migrations for existing DBs
     for migration in [
         "ALTER TABLE properties ADD COLUMN property_url TEXT",
+        "ALTER TABLE properties ADD COLUMN crime_tier INTEGER",
+        "ALTER TABLE properties ADD COLUMN crime_label TEXT",
     ]:
         try:
             cur.execute(migration)
@@ -98,6 +101,15 @@ def init_db():
     conn.close()
 
 
+def _resolve_mls_id(row) -> str:
+    """Return mls_id if present, else a stable hash of address+city+state."""
+    mls_id = str(row.get("mls_id", "") or "").strip()
+    if not mls_id:
+        key = f"{row.get('address', '')}{row.get('city', '')}{row.get('state', '')}"
+        mls_id = "addr_" + hashlib.md5(key.encode()).hexdigest()[:12]
+    return mls_id
+
+
 def upsert_properties(df: pd.DataFrame, market: str):
     if df.empty:
         return 0
@@ -105,11 +117,16 @@ def upsert_properties(df: pd.DataFrame, market: str):
     conn = get_connection()
     now = datetime.now().isoformat()
     inserted = 0
+    errors = 0
+
+    print(f"[DB] upsert_properties: attempting {len(df)} rows for market={market}")
 
     for _, row in df.iterrows():
         score_breakdown = row.get("score_breakdown", {})
         if isinstance(score_breakdown, dict):
             score_breakdown = json.dumps(score_breakdown)
+
+        mls_id = _resolve_mls_id(row)
 
         try:
             conn.execute("""
@@ -117,8 +134,9 @@ def upsert_properties(df: pd.DataFrame, market: str):
                     mls_id, address, city, state, zip_code, county, price, beds, baths,
                     sqft, lot_sqft, property_type, status, days_on_market, list_date,
                     year_built, hoa_fee, tax_amount, latitude, longitude, url, property_url,
-                    est_rent, rent_ratio, score, score_breakdown, market, scraped_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    est_rent, rent_ratio, score, score_breakdown, market, scraped_at,
+                    crime_tier, crime_label
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(mls_id, market) DO UPDATE SET
                     price=excluded.price,
                     days_on_market=excluded.days_on_market,
@@ -127,9 +145,11 @@ def upsert_properties(df: pd.DataFrame, market: str):
                     rent_ratio=excluded.rent_ratio,
                     score=excluded.score,
                     score_breakdown=excluded.score_breakdown,
+                    crime_tier=excluded.crime_tier,
+                    crime_label=excluded.crime_label,
                     scraped_at=excluded.scraped_at
             """, (
-                str(row.get("mls_id", "")),
+                mls_id,
                 str(row.get("address", "")),
                 str(row.get("city", "")),
                 str(row.get("state", "")),
@@ -157,13 +177,17 @@ def upsert_properties(df: pd.DataFrame, market: str):
                 score_breakdown,
                 market,
                 now,
+                int(row.get("crime_tier", 3) or 3),
+                str(row.get("crime_label", "") or ""),
             ))
             inserted += 1
-        except Exception:
-            pass
+        except Exception as e:
+            errors += 1
+            print(f"[DB] upsert error for row (mls_id={mls_id}): {e}")
 
     conn.commit()
     conn.close()
+    print(f"[DB] upsert_properties: {inserted} inserted/updated, {errors} errors")
     return inserted
 
 
@@ -194,6 +218,9 @@ def get_properties(market=None, filters: dict = None) -> pd.DataFrame:
         if filters.get("min_ratio"):
             query += " AND rent_ratio >= ?"
             params.append(filters["min_ratio"])
+        if filters.get("max_crime_tier"):
+            query += " AND (crime_tier IS NULL OR crime_tier <= ?)"
+            params.append(filters["max_crime_tier"])
 
     query += " ORDER BY score DESC"
 
