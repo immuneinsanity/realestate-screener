@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -257,6 +258,18 @@ WATCHLIST_STATUSES = ["Researching", "Made Offer", "Under Contract", "Passed"]
 
 init_db()
 
+# Build last-scanned lookup for market labels (queried once per page load)
+_markets_for_labels = get_markets()
+last_scanned_map: dict = {}
+if not _markets_for_labels.empty and "location" in _markets_for_labels.columns:
+    for _, _r in _markets_for_labels.iterrows():
+        _ts = _r.get("last_scraped", "")
+        if _ts:
+            try:
+                last_scanned_map[_r["location"]] = datetime.fromisoformat(str(_ts)).strftime("%m/%d %H:%M")
+            except Exception:
+                pass
+
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
@@ -302,6 +315,7 @@ with st.sidebar:
         key="markets_view",
         label_visibility="collapsed",
         placeholder="Select markets to display…",
+        format_func=lambda m: f"{m}  ·  {last_scanned_map[m]}" if m in last_scanned_map else m,
     )
 
     past_days = st.slider("Listings from last N days", 7, 90, 30, key="past_days")
@@ -321,6 +335,23 @@ with st.sidebar:
 
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
     scan_btn = st.button("🔍 Scan Market", use_container_width=True, type="primary")
+
+    _n_sel = len(selected_markets)
+    if _n_sel > 10:
+        _est_mins = _n_sel
+        _confirm_large = st.checkbox(
+            f"⚠️ Scanning {_n_sel} markets may take ~{_est_mins} min. "
+            "Realtor.com may rate-limit. Continue?",
+            key="confirm_large_scan",
+        )
+    else:
+        _confirm_large = True
+    scan_all_btn = st.button(
+        f"🔍 Scan All Selected Markets ({_n_sel})",
+        use_container_width=True,
+        disabled=(_n_sel == 0 or (_n_sel > 10 and not _confirm_large)),
+        key="scan_all_btn",
+    )
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
@@ -340,6 +371,25 @@ if scan_btn:
     else:
         st.sidebar.success(f"Found {len(result_df)} properties in {selected_market}")
         st.session_state["last_market"] = selected_market
+
+if scan_all_btn and selected_markets:
+    _total = len(selected_markets)
+    _total_found = 0
+    _prog = st.sidebar.progress(0)
+    _status = st.sidebar.empty()
+    _tally = st.sidebar.empty()
+
+    for _i, _mkt in enumerate(selected_markets):
+        _status.info(f"Scanning {_i + 1} of {_total}: {_mkt}...")
+        _df = scrape_market(_mkt, past_days=past_days)
+        _found = len(_df) if not _df.empty else 0
+        _total_found += _found
+        _prog.progress((_i + 1) / _total)
+        _tally.caption(f"Completed {_i + 1}/{_total} markets · {_total_found} properties found so far")
+
+    _prog.empty()
+    _status.empty()
+    _tally.success(f"✅ Scan complete. Found {_total_found} new properties across {_total} markets.")
 
 # ---------------------------------------------------------------------------
 # Active filters dict for DB query
