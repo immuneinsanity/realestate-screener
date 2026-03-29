@@ -15,7 +15,7 @@ from src.db import (
     remove_from_watchlist,
 )
 from src.scraper import scrape_market
-from src.analyzer import get_ratio_label, download_hud_fmr, MAX_PRICE
+from src.analyzer import get_ratio_label, MAX_PRICE
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -217,11 +217,6 @@ DEFAULT_MARKETS = [
 WATCHLIST_STATUSES = ["Researching", "Made Offer", "Under Contract", "Passed"]
 
 init_db()
-
-# Ensure HUD data is available (non-blocking — only downloads if missing)
-if "fmr_checked" not in st.session_state:
-    download_hud_fmr()
-    st.session_state["fmr_checked"] = True
 
 # ---------------------------------------------------------------------------
 # Sidebar
