@@ -483,15 +483,16 @@ with tab_screener:
                     bc5.metric("Freshness", f"{breakdown.get('dom_score', 0)}/10")
 
                 # Links + watchlist
-                url = str(row.get("url", ""))
+                property_url = str(row.get("property_url", "") or row.get("url", "") or "")
                 link_col, btn_col = st.columns([3, 1])
                 with link_col:
-                    if url and url.startswith("http"):
-                        st.markdown(f"[🔗 View on Realtor.com]({url})")
-                    city_enc = str(row.get("city", "")).replace(" ", "+")
-                    addr_enc = str(row.get("address", "")).replace(" ", "+")
-                    zillow_url = f"https://www.zillow.com/homes/{addr_enc},-{city_enc},-{row.get('state', '')}_rb/"
-                    st.markdown(f"[🏡 Search Zillow]({zillow_url})")
+                    if property_url and property_url.startswith("http"):
+                        st.markdown(f"[🔗 View on Realtor.com]({property_url})")
+                    else:
+                        city_slug = str(row.get("city", "")).replace(" ", "-")
+                        state_slug = str(row.get("state", ""))
+                        fallback_url = f"https://www.realtor.com/realestateandhomes-search/{city_slug}_{state_slug}"
+                        st.markdown(f"[🔗 Search Realtor.com]({fallback_url})")
                 with btn_col:
                     if st.button("📌 Add to Watchlist", key=f"wl_{row.get('id', '')}_{row.get('mls_id', '')}"):
                         success = add_to_watchlist(row.to_dict())
@@ -579,9 +580,14 @@ with tab_watchlist:
                     st.markdown(f"**Sqft:** {int(row.get('sqft', 0) or 0):,}")
                     st.markdown(f"**Est. Rent:** ${float(row.get('est_rent', 0) or 0):,.0f}/mo")
                     st.markdown(f"**Rent Ratio:** {icon} {ratio*100:.2f}%")
-                    url = str(row.get("url", ""))
-                    if url and url.startswith("http"):
-                        st.markdown(f"[🔗 Listing]({url})")
+                    property_url = str(row.get("property_url", "") or row.get("url", "") or "")
+                    if property_url and property_url.startswith("http"):
+                        st.markdown(f"[🔗 View on Realtor.com]({property_url})")
+                    else:
+                        city_slug = str(row.get("city", "")).replace(" ", "-")
+                        state_slug = str(row.get("state", ""))
+                        fallback_url = f"https://www.realtor.com/realestateandhomes-search/{city_slug}_{state_slug}"
+                        st.markdown(f"[🔗 Search Realtor.com]({fallback_url})")
                 with wc2:
                     new_status = st.selectbox(
                         "Status",

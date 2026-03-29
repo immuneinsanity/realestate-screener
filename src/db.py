@@ -42,6 +42,7 @@ def init_db():
             latitude REAL,
             longitude REAL,
             url TEXT,
+            property_url TEXT,
             est_rent REAL,
             rent_ratio REAL,
             score REAL,
@@ -83,6 +84,17 @@ def init_db():
     """)
 
     conn.commit()
+
+    # Migrations for existing DBs
+    for migration in [
+        "ALTER TABLE properties ADD COLUMN property_url TEXT",
+    ]:
+        try:
+            cur.execute(migration)
+            conn.commit()
+        except Exception:
+            pass  # column already exists
+
     conn.close()
 
 
@@ -104,12 +116,13 @@ def upsert_properties(df: pd.DataFrame, market: str):
                 INSERT INTO properties (
                     mls_id, address, city, state, zip_code, county, price, beds, baths,
                     sqft, lot_sqft, property_type, status, days_on_market, list_date,
-                    year_built, hoa_fee, tax_amount, latitude, longitude, url,
+                    year_built, hoa_fee, tax_amount, latitude, longitude, url, property_url,
                     est_rent, rent_ratio, score, score_breakdown, market, scraped_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(mls_id, market) DO UPDATE SET
                     price=excluded.price,
                     days_on_market=excluded.days_on_market,
+                    property_url=excluded.property_url,
                     est_rent=excluded.est_rent,
                     rent_ratio=excluded.rent_ratio,
                     score=excluded.score,
@@ -137,6 +150,7 @@ def upsert_properties(df: pd.DataFrame, market: str):
                 float(row.get("latitude", 0) or 0),
                 float(row.get("longitude", 0) or 0),
                 str(row.get("url", "")),
+                str(row.get("property_url", "") or row.get("permalink", "") or ""),
                 float(row.get("est_rent", 0) or 0),
                 float(row.get("rent_ratio", 0) or 0),
                 float(row.get("score", 0) or 0),
