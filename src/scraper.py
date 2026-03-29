@@ -4,7 +4,9 @@ from datetime import datetime
 from typing import List
 
 from src.analyzer import enrich_properties, is_landlord_friendly
-from src.db import upsert_properties, update_market_stats
+from src.db import init_db, upsert_properties, update_market_stats
+
+init_db()
 
 
 PROPERTY_TYPE_FILTERS = {"SINGLE_FAMILY", "Single Family", "SingleFamily", "single_family"}
